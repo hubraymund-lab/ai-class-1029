@@ -383,7 +383,7 @@ body.teach .dock { display: block; }
     retryTimer = setTimeout(connect, wait);
   }
   function connect() {
-    clearTimeout(retryTimer);
+    clearTimeout(retryTimer); retryTimer = null;
     try {
       if (!sb) sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { realtime: { heartbeatIntervalMs: 15000 } });
       if (sbCh) { const old = sbCh; sbCh = null; sb.removeChannel(old).catch(() => {}); }
@@ -411,7 +411,13 @@ body.teach .dock { display: block; }
     const wake = () => { if (!sbJoined) { retry = 0; connect(); } };
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake(); });
     addEventListener('online', wake); addEventListener('pageshow', wake);
-    window.__gyoanTest = { drop: () => { try { sb.realtime.disconnect(); } catch (e) {} }, joined: () => sbJoined };  // 연결 끊김 시험용
+    // 5초마다 실제 연결 상태를 확인 — 끊김 알림이 오지 않는 경우도 다시 연결
+    setInterval(() => {
+      let ok = false; try { ok = sb.realtime.isConnected() && sbCh && sbCh.state === 'joined'; } catch (e) {}
+      if (!ok && sbJoined) scheduleReconnect();
+      else if (!ok && !retryTimer) scheduleReconnect();
+    }, 5000);
+    window.__gyoanTest = { drop: () => { try { sb.realtime.disconnect(); } catch (e) {} }, state: () => ({ joined: sbJoined, conn: sb.realtime.isConnected(), ch: sbCh && sbCh.state }) };  // 연결 끊김 시험용
     transports.push({
       here: (msg) => { if (sbCh && sbJoined) sbCh.send({ type: 'broadcast', event: 'here', payload: msg }).catch(() => {}); },
       show: (msg) => { if (sbCh && sbJoined) sbCh.send({ type: 'broadcast', event: 'show', payload: msg }).catch(() => {}); },
