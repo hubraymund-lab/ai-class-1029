@@ -124,6 +124,17 @@ body.teach .dock { display: block; }
 .dock .now b { color: var(--buoy); }
 .pill { border: 1px solid #5a6a72; border-radius: 20px; padding: 4px 12px; font-variant-numeric: tabular-nums; }
 .pill.warn { background: var(--buoy); border-color: var(--buoy); color: #fff; font-weight: 700; }
+.crowd { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.crowd b { color: var(--ink); }
+.toc .cnt { float: right; margin-left: 8px; font-size: 13px; font-weight: 700; color: #fff; background: var(--sea); border-radius: 10px; padding: 0 7px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.show { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; background: rgba(12,20,24,.94); color: #fff; text-align: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px; }
+.show .big { font-family: var(--f-display); font-size: clamp(64px, 16vw, 150px); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.show .lbl { font-size: clamp(18px, 3.4vw, 28px); margin-top: .4em; }
+.show .row { display: flex; gap: clamp(28px, 7vw, 90px); justify-content: center; flex-wrap: wrap; }
+.show .bar2 { width: min(560px, 80vw); height: 14px; border-radius: 7px; background: rgba(255,255,255,.22); margin: 1.4em auto .4em; overflow: hidden; }
+.show .bar2 i { display: block; height: 100%; background: var(--buoy); width: 0; transition: width 1.2s ease-out; }
+.show .sub { font-size: 18px; opacity: .85; }
 .note { max-width: 40em; margin: 0 auto 18px; font-size: 15px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; padding: 10px 14px; line-height: 1.55; }
 .cover { max-width: 40em; margin: 0 auto 8px; }
 .cover .eyebrow { font-size: 15px; color: var(--muted); letter-spacing: .03em; }
@@ -141,6 +152,7 @@ body.teach .dock { display: block; }
   <div class="bar-in">
     <span class="bar-title" id="ttl">같은 AI로 다른 결과 만들기</span>
     <span class="status" id="status" data-s="off"><span class="dot"></span><span id="statusText">연결 중…</span></span>
+    <span class="crowd" id="crowd" hidden></span>
     <button class="btn" id="follow" type="button" aria-pressed="true">강사 따라가기</button>
     <span class="group" aria-label="글자 크기">
       <button class="btn" id="fsDown" type="button" aria-label="글자 작게">가−</button>
@@ -164,11 +176,24 @@ body.teach .dock { display: block; }
 <button class="back btn" id="back" type="button" hidden>강사 위치로 ↓</button>
 <button class="help btn" id="help" type="button" aria-pressed="false">✋ 막혔어요</button>
 
+<div class="show" id="show" hidden role="dialog" aria-label="참여 현황">
+  <div>
+    <div class="row">
+      <div><div class="big" id="showN">0</div><div class="lbl">명이 함께 보고 있어요</div></div>
+      <div><div class="big" id="showF">0</div><div class="lbl">명이 강사를 따라오는 중</div></div>
+    </div>
+    <div class="bar2"><i id="showBar"></i></div>
+    <div class="sub" id="showSub"></div>
+  </div>
+</div>
+
 <div class="dock" id="dock">
   <div class="dock-in">
     <span class="now">강사 모드 · 지금 <b id="nowName">—</b></span>
     <span class="pill" id="countPill">접속 0명</span>
+    <span class="pill" id="followPill">따라오는 중 0명</span>
     <span class="pill" id="helpPill">막혔어요 0명</span>
+    <button class="btn" id="showBtn" type="button">📣 모두에게 보여주기</button>
     <button class="btn" id="prev" type="button">◀ 이전</button>
     <button class="btn" id="next" type="button">다음 ▶</button>
   </div>
@@ -232,7 +257,7 @@ body.teach .dock { display: block; }
   /* ---------- 상태 ---------- */
   const teach = location.hash.startsWith('#teach');
   const myId = Math.random().toString(36).slice(2, 10);
-  let here = null, hereTs = 0, follow = store.get('follow') !== 'off', helpOn = false;
+  let here = null, hereTs = 0, follow = store.get('follow') !== 'off', helpOn = false, myAt = null;
   if (teach) document.body.classList.add('teach');
 
   function paintHere() {
@@ -241,7 +266,7 @@ body.teach .dock { display: block; }
     if (teach) $('nowName').textContent = here && byId[here] ? byId[here].dataset.label : '—';
     updateBack();
   }
-  function setFollow(on) { follow = on; $('follow').setAttribute('aria-pressed', String(on)); store.set('follow', on ? 'on' : 'off'); updateBack(); }
+  function setFollow(on) { const ch = on !== follow; follow = on; $('follow').setAttribute('aria-pressed', String(on)); store.set('follow', on ? 'on' : 'off'); updateBack(); if (ch) { try { transports.forEach(t => t.presence()); refreshCounts(); } catch (e) {} } }
   $('follow').onclick = () => { setFollow(!follow); if (follow) jump(); };
   $('back').onclick = () => { setFollow(true); jump(); };
   function jump() { if (here && byId[here]) byId[here].scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
@@ -277,6 +302,8 @@ body.teach .dock { display: block; }
       if (part) { try { privKey = await crypto.subtle.importKey('jwk', { ...CFG.publicKey, d: part, key_ops: ['sign'] }, ALG, false, ['sign']); } catch (e) { privKey = null; } }
     }
   })();
+  async function signStr(str) { await ready; if (!privKey) return null; return b64u.enc(await crypto.subtle.sign(SIG, privKey, new TextEncoder().encode(str))); }
+  async function verifyStr(str, sig) { await ready; if (!CFG.publicKey) return true; if (!pubKey || !sig) return false; try { return await crypto.subtle.verify(SIG, pubKey, b64u.dec(sig), new TextEncoder().encode(str)); } catch (e) { return false; } }
   async function sign(msg) { await ready; if (!privKey) return msg; const s = await crypto.subtle.sign(SIG, privKey, new TextEncoder().encode(msg.sec + '|' + msg.ts)); return { ...msg, sig: b64u.enc(s) }; }
   async function verify(msg) {
     await ready; if (!CFG.publicKey) return true; if (!pubKey || !msg.sig) return false;
@@ -287,11 +314,23 @@ body.teach .dock { display: block; }
   const peers = new Map(); // id -> {role, help, seen}
   const transports = [];
   function setStatus(on, text) { $('status').dataset.s = on ? 'on' : 'off'; $('statusText').textContent = text; }
+  let stats = { n: 0, f: 0, h: 0, at: {} }, teacherOn = false;
   function refreshCounts() {
-    const now = Date.now(); let n = 0, h = 0;
-    for (const [id, p] of peers) { if (p.local && now - p.seen > 12000) { peers.delete(id); continue; } if (p.role === 's') { n++; if (p.help) h++; } }
+    const now = Date.now(); let n = 0, f = 0, h = 0; const at = {}; teacherOn = false;
+    for (const [id, p] of peers) {
+      if (p.local && now - p.seen > 12000) { peers.delete(id); continue; }
+      if (p.role === 't') { teacherOn = true; continue; }
+      if (p.role === 's') { n++; if (p.follow) f++; if (p.help) h++; if (p.at) at[p.at] = (at[p.at] || 0) + 1; }
+    }
+    if (!teach) { n++; if (follow) f++; if (helpOn) h++; }   // 나 자신도 셈
+    stats = { n, f, h, at };
     $('countPill').textContent = '접속 ' + n + '명';
+    $('followPill').textContent = '따라오는 중 ' + f + '명';
     $('helpPill').textContent = '막혔어요 ' + h + '명'; $('helpPill').classList.toggle('warn', h > 0);
+    const c = $('crowd'); c.hidden = !(transports.length && (n > 1 || teacherOn));
+    c.innerHTML = '함께 <b>' + n + '</b> · 따라오는 <b>' + f + '</b>';
+    if (teach) document.querySelectorAll('#tocList a').forEach(a => { let b = a.querySelector('.cnt'); const k = at[a.dataset.id] || 0;
+      if (!k) { if (b) b.remove(); return; } if (!b) { b = document.createElement('span'); b.className = 'cnt'; a.prepend(b); } b.textContent = k; });
   }
   setInterval(refreshCounts, 3000);
 
@@ -300,12 +339,13 @@ body.teach .dock { display: block; }
     const bc = new BroadcastChannel('gyoan-' + (CFG.room || 'demo'));
     bc.onmessage = (e) => { const d = e.data || {};
       if (d.type === 'here') receive(d.msg);
-      if (d.type === 'hello') { peers.set(d.id, { role: d.role, help: !!d.help, seen: Date.now(), local: true }); refreshCounts(); if (teach && here) sendHere();
+      if (d.type === 'show') showStats(d.msg);
+      if (d.type === 'hello') { peers.set(d.id, { role: d.role, help: !!d.help, follow: !!d.follow, at: d.at, seen: Date.now(), local: true }); refreshCounts(); if (teach && here) sendHere();
         if (!sbCh) setStatus(true, teach ? '다른 탭과 연결됨(시험)' : '강사 탭과 연결됨(시험)'); }
     };
-    const hello = () => bc.postMessage({ type: 'hello', id: myId, role: teach ? 't' : 's', help: helpOn });
+    const hello = () => bc.postMessage({ type: 'hello', id: myId, role: teach ? 't' : 's', help: helpOn, follow, at: myAt });
     hello(); setInterval(hello, 5000);
-    transports.push({ here: (msg) => bc.postMessage({ type: 'here', msg }), presence: hello });
+    transports.push({ here: (msg) => bc.postMessage({ type: 'here', msg }), show: (msg) => bc.postMessage({ type: 'show', msg }), presence: hello });
   }
 
   // 2) 실시간 서버 — config에 Supabase 주소가 있을 때만
@@ -315,10 +355,11 @@ body.teach .dock { display: block; }
       const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey);
       sbCh = sb.channel('gyoan-' + (CFG.room || 'class'), { config: { broadcast: { self: false }, presence: { key: myId } } });
       sbCh.on('broadcast', { event: 'here' }, ({ payload }) => receive(payload));
+      sbCh.on('broadcast', { event: 'show' }, ({ payload }) => showStats(payload));
       sbCh.on('presence', { event: 'sync' }, () => {
         const st = sbCh.presenceState();
         for (const k of [...peers.keys()]) if (!peers.get(k).local) peers.delete(k);
-        for (const [k, arr] of Object.entries(st)) { const p = arr[0] || {}; if (k === myId) continue; peers.set(k, { role: p.role, help: !!p.help, seen: Date.now() }); if (p.role === 't' && p.here) receive(p.here); }
+        for (const [k, arr] of Object.entries(st)) { const p = arr[0] || {}; if (k === myId) continue; peers.set(k, { role: p.role, help: !!p.help, follow: !!p.follow, at: typeof p.at === 'string' ? p.at : null, seen: Date.now() }); if (p.role === 't' && p.here) receive(p.here); }
         refreshCounts();
         if (!teach) { const t = Object.values(st).some(arr => (arr[0] || {}).role === 't'); setStatus(true, t ? '강사와 연결됨' : '연결됨 · 강사 대기 중'); }
       });
@@ -326,11 +367,11 @@ body.teach .dock { display: block; }
         if (s === 'SUBSCRIBED') { setStatus(true, teach ? '실시간 연결됨' : '연결됨 · 강사 대기 중'); await trackMe(); }
         else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') setStatus(false, '다시 연결하는 중…');
       });
-      transports.push({ here: (msg) => sbCh.send({ type: 'broadcast', event: 'here', payload: msg }), presence: trackMe });
+      transports.push({ here: (msg) => sbCh.send({ type: 'broadcast', event: 'here', payload: msg }), show: (msg) => sbCh.send({ type: 'broadcast', event: 'show', payload: msg }), presence: trackMe });
     } catch (e) { sbCh = null; }
   }
   let lastSigned = null;
-  async function trackMe() { if (!sbCh) return; await sbCh.track(teach ? { role: 't', here: lastSigned } : { role: 's', help: helpOn }).catch(() => {}); }
+  async function trackMe() { if (!sbCh) return; await sbCh.track(teach ? { role: 't', here: lastSigned } : { role: 's', help: helpOn, follow, at: myAt }).catch(() => {}); }
 
   if (!sbCh) {
     setStatus(false, CFG.supabaseUrl ? '연결 안 됨 · 혼자 보기' : '혼자 보기');
@@ -359,6 +400,32 @@ body.teach .dock { display: block; }
     const saved = store.get('teachHere'); setTimeout(() => teachGo(saved && byId[saved] ? saved : marks[0].id), 300);
     setInterval(() => { if (here) sendHere(); }, 15000);  // 늦게 들어온 수강생을 위해 주기적으로 다시 알림
   }
+
+  /* ---------- 내가 보고 있는 장 (강사 목차에 장별 인원으로 표시) ---------- */
+  let atTimer = null;
+  function calcAt() { let cur = null; for (const m of marks) { if (m.getBoundingClientRect().top < innerHeight * 0.35) cur = m.id; else break; } return cur; }
+  addEventListener('scroll', () => { if (teach) return; clearTimeout(atTimer); atTimer = setTimeout(() => { const a = calcAt(); if (a !== myAt) { myAt = a; transports.forEach(t => t.presence()); } }, 1200); }, { passive: true });
+  myAt = calcAt();
+
+  /* ---------- 📣 모두에게 보여주기 ---------- */
+  let showTs = 0, showTimer = null;
+  function showStats(msg) {
+    if (!msg || typeof msg.n !== 'number' || typeof msg.f !== 'number' || typeof msg.ts !== 'number' || msg.ts <= showTs || Date.now() - msg.ts > 60000) return;
+    verifyStr('show|' + msg.n + '|' + msg.f + '|' + msg.ts, msg.sig).then(ok => {
+      if (!ok || msg.ts <= showTs) return; showTs = msg.ts;
+      const n = Math.max(0, Math.min(999, msg.n | 0)), f = Math.max(0, Math.min(n, msg.f | 0));
+      $('showN').textContent = n; $('showF').textContent = f; $('showBar').style.width = '0';
+      $('showSub').textContent = n ? '따라오는 비율 ' + Math.round(f / n * 100) + '%' : '';
+      $('show').hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => { $('showBar').style.width = (n ? f / n * 100 : 0) + '%'; }));
+      clearTimeout(showTimer); showTimer = setTimeout(() => { $('show').hidden = true; }, 7000);
+    });
+  }
+  $('show').onclick = () => { $('show').hidden = true; };
+  $('showBtn').onclick = async () => {
+    refreshCounts(); const ts = Date.now(); const msg = { n: stats.n, f: stats.f, ts };
+    const sig = await signStr('show|' + msg.n + '|' + msg.f + '|' + ts); if (CFG.publicKey && !sig) return;
+    if (sig) msg.sig = sig; showStats(msg); transports.forEach(t => t.show && t.show(msg));
+  };
 
   /* ---------- 막혔어요 ---------- */
   $('help').onclick = () => { helpOn = !helpOn; $('help').setAttribute('aria-pressed', String(helpOn)); $('help').textContent = helpOn ? '✋ 도움 요청 중 · 누르면 취소' : '✋ 막혔어요'; transports.forEach(t => t.presence()); };
