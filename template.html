@@ -257,7 +257,7 @@ body.teach .dock { display: block; }
   /* ---------- 상태 ---------- */
   const teach = location.hash.startsWith('#teach');
   const myId = Math.random().toString(36).slice(2, 10);
-  let here = null, hereTs = 0, follow = store.get('follow') !== 'off', helpOn = false, myAt = null;
+  let here = null, hereTs = 0, follow = true, helpOn = false, myAt = null;
   if (teach) document.body.classList.add('teach');
 
   function paintHere() {
@@ -266,7 +266,7 @@ body.teach .dock { display: block; }
     if (teach) $('nowName').textContent = here && byId[here] ? byId[here].dataset.label : '—';
     updateBack();
   }
-  function setFollow(on) { const ch = on !== follow; follow = on; $('follow').setAttribute('aria-pressed', String(on)); store.set('follow', on ? 'on' : 'off'); updateBack(); if (ch) { try { transports.forEach(t => t.presence()); refreshCounts(); } catch (e) {} } }
+  function setFollow(on) { const ch = on !== follow; follow = on; $('follow').setAttribute('aria-pressed', String(on)); updateBack(); if (ch) { try { transports.forEach(t => t.presence()); refreshCounts(); } catch (e) {} } }
   $('follow').onclick = () => { setFollow(!follow); if (follow) jump(); };
   $('back').onclick = () => { setFollow(true); jump(); };
   function jump() { if (here && byId[here]) byId[here].scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
