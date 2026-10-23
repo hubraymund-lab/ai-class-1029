@@ -1,0 +1,45 @@
+# 교육 종료: 2026년 10월 29일 18:00(한국 시간)에 사이트를 종료 안내 한 장으로 바꾸고 실습자료 zip을 지웁니다.
+# 미리 닫거나 시간을 놓쳤으면 Actions → 교육 종료 → Run workflow 를 누르세요.
+name: 교육 종료
+on:
+  schedule:
+    - cron: '0 9 29 10 *'   # 09:00 UTC = 18:00 KST (GitHub 예약은 몇 분~수십 분 늦을 수 있음)
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  actions: write
+concurrency: { group: pages, cancel-in-progress: false }
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs: { go: '${{ steps.y.outputs.go }}' }
+    steps:
+      - id: y
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$(TZ=Asia/Seoul date +%Y-%m-%d)" = "2026-10-29" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
+  build:
+    needs: check
+    if: needs.check.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 새로고침 작업 멈추기 (종료 뒤 다시 올라가지 않게)
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: gh workflow disable build.yml --repo "${{ github.repository }}" || true
+      - name: 실습자료 zip 지우기
+        run: |
+          if [ -f 실습자료.zip ]; then
+            git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git rm -q 실습자료.zip && git commit -qm "교육 종료: 실습자료 zip 삭제" && git push -q
+          fi
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: closed }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.d.outputs.page_url }}' }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
