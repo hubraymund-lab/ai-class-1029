@@ -122,6 +122,9 @@ body.teach .dock { display: block; }
 .dock .btn { background: transparent; color: var(--paper); border-color: #5a6a72; }
 .dock .now { margin-right: auto; min-width: 0; }
 .dock .now b { color: var(--buoy); }
+.keyform { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; width: 100%; }
+.keyform input { flex: 1 1 16rem; min-width: 0; font: inherit; font-size: 15px; padding: 7px 10px; border-radius: 6px; border: 1px solid #5a6a72; background: #0f171b; color: #fff; }
+#keyMsg { color: var(--buoy); font-weight: 700; }
 .pill { border: 1px solid #5a6a72; border-radius: 20px; padding: 4px 12px; font-variant-numeric: tabular-nums; }
 .pill.warn { background: var(--buoy); border-color: var(--buoy); color: #fff; font-weight: 700; }
 .crowd { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -194,6 +197,12 @@ body.teach .dock { display: block; }
     <span class="pill" id="followPill">따라오는 중 0명</span>
     <span class="pill" id="helpPill">막혔어요 0명</span>
     <button class="btn" id="showBtn" type="button">📣 모두에게 보여주기</button>
+    <form class="keyform" id="keyForm" hidden>
+      <label for="keyIn">강사 열쇠</label>
+      <input id="keyIn" type="password" autocomplete="off" placeholder="강사 링크나 #teach. 뒤 글자를 붙여 넣기">
+      <button class="btn" type="submit">넣기</button>
+      <span id="keyMsg"></span>
+    </form>
     <button class="btn" id="prev" type="button">◀ 이전</button>
     <button class="btn" id="next" type="button">다음 ▶</button>
   </div>
@@ -295,11 +304,22 @@ body.teach .dock { display: block; }
                  dec: (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0)) };
   const ALG = { name: 'ECDSA', namedCurve: 'P-256' }, SIG = { name: 'ECDSA', hash: 'SHA-256' };
   let pubKey = null, privKey = null;
+  const parseKey = (v) => { v = String(v || '').trim(); const m = v.match(/teach\.([A-Za-z0-9_-]{40,})/); if (m) return m[1]; return /^[A-Za-z0-9_-]{40,}$/.test(v) ? v : ''; };
+  async function importPriv(d) {   // 열쇠를 불러오고, 공개 열쇠와 짝이 맞는지 서명해 확인
+    if (!d || !crypto.subtle) return null;
+    try {
+      const k = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: CFG.publicKey.x, y: CFG.publicKey.y, d }, ALG, false, ['sign']);
+      const t = new TextEncoder().encode('check'); const sg = await crypto.subtle.sign(SIG, k, t);
+      if (pubKey && !(await crypto.subtle.verify(SIG, pubKey, sg, t))) return null;
+      return k;
+    } catch (e) { return null; }
+  }
   const ready = (async () => {
-    if (CFG.publicKey && crypto.subtle) pubKey = await crypto.subtle.importKey('jwk', CFG.publicKey, ALG, false, ['verify']).catch(() => null);
+    if (CFG.publicKey && crypto.subtle) pubKey = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: CFG.publicKey.x, y: CFG.publicKey.y }, ALG, false, ['verify']).catch(() => null);
     if (teach && CFG.publicKey) {
-      const part = location.hash.slice('#teach'.length).replace(/^\./, '');
-      if (part) { try { privKey = await crypto.subtle.importKey('jwk', { ...CFG.publicKey, d: part, key_ops: ['sign'] }, ALG, false, ['sign']); } catch (e) { privKey = null; } }
+      for (const cand of [parseKey(location.hash), parseKey(store.get('teachKey'))]) {
+        const k = await importPriv(cand); if (k) { privKey = k; store.set('teachKey', cand); break; }
+      }
     }
   })();
   async function signStr(str) { await ready; if (!privKey) return null; return b64u.enc(await crypto.subtle.sign(SIG, privKey, new TextEncoder().encode(str))); }
@@ -387,7 +407,7 @@ body.teach .dock { display: block; }
   async function sendHere() { const msg = lastSigned || await sign({ sec: here, ts: hereTs }); transports.forEach(t => t.here(msg)); }
   async function teachGo(id) {
     if (!teach || !byId[id]) return;
-    await ready; if (CFG.publicKey && !privKey) { setStatus(false, '강사 열쇠가 없어 위치를 보낼 수 없습니다'); return; }
+    await ready; if (CFG.publicKey && !privKey) { askKey(); return; }
     here = id; hereTs = Date.now(); lastSigned = await sign({ sec: here, ts: hereTs });
     paintHere(); byId[id].scrollIntoView({ behavior: 'smooth' });
     transports.forEach(t => { t.here(lastSigned); }); trackMe();
@@ -426,6 +446,17 @@ body.teach .dock { display: block; }
     const sig = await signStr('show|' + msg.n + '|' + msg.f + '|' + ts); if (CFG.publicKey && !sig) return;
     if (sig) msg.sig = sig; showStats(msg); transports.forEach(t => t.show && t.show(msg));
   };
+
+  /* ---------- 강사 열쇠 넣기 (주소에 열쇠가 빠졌을 때) ---------- */
+  function askKey() { $('keyForm').hidden = false; $('keyMsg').textContent = '강사 열쇠를 넣어야 수강생 화면이 따라옵니다'; }
+  $('keyForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); await ready;
+    const d = parseKey($('keyIn').value); const k = await importPriv(d);
+    if (!k) { $('keyMsg').textContent = d ? '열쇠가 맞지 않습니다. 강사링크.txt의 #teach. 뒤 글자 전체를 붙여 넣어 주세요' : '열쇠 형식이 아닙니다'; return; }
+    privKey = k; store.set('teachKey', d); $('keyIn').value = ''; $('keyForm').hidden = true;
+    teachGo(here && byId[here] ? here : marks[0].id);
+  });
+  if (teach) ready.then(() => { if (CFG.publicKey && !privKey) askKey(); });
 
   /* ---------- 막혔어요 ---------- */
   $('help').onclick = () => { helpOn = !helpOn; $('help').setAttribute('aria-pressed', String(helpOn)); $('help').textContent = helpOn ? '✋ 도움 요청 중 · 누르면 취소' : '✋ 막혔어요'; transports.forEach(t => t.presence()); };

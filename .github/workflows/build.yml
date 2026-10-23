@@ -22,7 +22,7 @@ jobs:
           NOTION_PAGE_ID: ${{ secrets.NOTION_PAGE_ID }}
         run: python notion_build.py site
       - name: 웹 화면 만들기
-        run: python build_page.py site/lesson.html site/index.html --config config.json && rm site/lesson.html && cp 실습자료.zip site/
+        run: python build_page.py site/lesson.html site/index.html --config config.json && rm site/lesson.html && cp 실습자료.zip site/ && cp -r vendor site/
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }
   deploy:

@@ -7,7 +7,8 @@ tpl = open(f'{here}/template.html', encoding='utf-8').read()
 cfg = json.load(open(a.config, encoding='utf-8')) if a.config else {}
 body = tpl.replace('<!--LESSON-->', open(a.lesson, encoding='utf-8').read()) \
           .replace('<!--CONFIG-->', json.dumps(cfg, ensure_ascii=False).replace('</', '<\\/'))
-sb = '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>' if cfg.get('supabaseUrl') else ''
+sb = ('<script src="vendor/supabase.js"></script>\n'
+      '<script>window.supabase||document.write(\'<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"><\\/script>\')</script>') if cfg.get('supabaseUrl') else ''
 body = body.replace('<!--SUPABASE-->', sb)
 if not a.artifact:
     body = '<!doctype html>\n<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n<style>[hidden]{display:none!important}img{max-width:100%}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>\n</head><body>\n' + body + '\n</body></html>\n'
