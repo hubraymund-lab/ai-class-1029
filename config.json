@@ -1,0 +1,7 @@
+{
+  "room": "ai-class-1029",
+  "supabaseUrl": "",
+  "supabaseKey": "",
+  "publicKey": {"kty": "EC", "crv": "P-256", "x": "wuF0j-VIAjYyXgz_1vxq575svMTksv_FRbR21nqa6CA", "y": "ACQNR1DLjzmgrmdxM8lJ944Bks6kKUrXJV0dI9gNG4U", "ext": true},
+  "downloadUrl": ""
+}

@@ -1,0 +1,37 @@
+# 웹 교안 — 노션 교안 + 강사 따라가기
+
+노션에서 교안을 고치면, 이 저장소가 그 내용을 웹 화면으로 바꿔 GitHub Pages에 올립니다.
+수강생은 링크(QR)로 로그인 없이 들어오고, 강사가 "다음 ▶"을 누르면 수강생 화면이 그 자리로 따라 움직입니다.
+
+## 화면
+- 수강생: 강사 따라가기(켜고 끄기), 글자 크기, 목차, 프롬프트 복사 버튼, "막혔어요" 버튼, 실습자료 내려받기
+- 강사: 주소 끝에 강사 열쇠(`#teach.…`)를 붙여 엽니다. 아래 조종 띠에 이전·다음, 접속자 수, "막혔어요" 수가 나옵니다. 제목 옆 "여기로"나 목차를 눌러도 이동합니다. 키보드 PageDown / PageUp도 됩니다.
+
+## 파일
+| 파일 | 하는 일 |
+| --- | --- |
+| `notion_build.py` | 노션 API로 교안을 읽어 본문 HTML로 바꿈. 이미지는 내려받아 저장(노션 이미지 주소는 1시간 뒤 만료) |
+| `build_page.py` | 본문 + `config.json` → `index.html` |
+| `template.html` | 화면 디자인과 동작 |
+| `config.json` | 실시간 서버 주소·키, 강사 공개 열쇠, 실습자료 링크 |
+| `keygen.py` | 강사 열쇠 만들기 (이미 만들어 둠) |
+| `.github/workflows/build.yml` | "교안 새로고침" 버튼 — 노션을 다시 읽어 사이트를 올림 |
+
+## 설정 (한 번만)
+1. **GitHub**: 공개(public) 저장소를 만들고 이 폴더의 파일을 모두 올립니다. Settings → Pages → Source를 **GitHub Actions**로 바꿉니다.
+2. **노션 연동**: notion.so/profile/integrations 에서 새 연동(내부)을 만들고 비밀 키를 복사합니다. 교안 페이지 오른쪽 위 `···` → 연결 → 방금 만든 연동을 추가합니다.
+3. **GitHub 비밀값**: 저장소 Settings → Secrets and variables → Actions 에 두 개를 넣습니다.
+   - `NOTION_TOKEN` = 노션 연동 비밀 키
+   - `NOTION_PAGE_ID` = 교안 페이지 주소 끝 32자리 (`4020721a57bf8161a9a9dafbbdb8863a`)
+4. **실시간 서버(Supabase, 무료)**: supabase.com 에서 새 프로젝트를 만들고 Project Settings → API 의 Project URL과 anon(public) 키를 `config.json` 의 `supabaseUrl`, `supabaseKey` 에 넣습니다. anon 키는 공개되어도 되는 키입니다.
+5. **실습자료 링크**: 구글 드라이브의 zip 공유 링크를 `config.json` 의 `downloadUrl` 에 넣습니다.
+6. Actions → 교안 새로고침 → Run workflow. 몇 분 뒤 `https://<아이디>.github.io/<저장소>/` 에 열립니다.
+
+## 수업 날
+- 노션을 고쳤으면 Actions에서 "교안 새로고침"을 한 번 누릅니다. (1~2분)
+- 강사 노트북에서 강사 링크를 열고, 수강생에게는 열쇠를 뺀 주소(QR)만 줍니다.
+- 휴대폰 두 대로 미리 시험합니다. 수강생이 화면을 직접 크게 움직이면 따라가기가 잠시 꺼지고 "강사 위치로" 버튼이 뜹니다.
+
+## 보안
+- 강사 링크의 `#teach.` 뒤 글자가 강사 열쇠입니다. 수강생 주소에는 없고, 이 열쇠로 서명한 위치만 수강생 화면이 받아들입니다. 열쇠가 새면 `keygen.py`로 새로 만들고 `config.json`의 publicKey를 바꿉니다.
+- 사이트는 검색엔진에 노출되지 않게(noindex) 해 두었지만, 주소를 아는 사람은 볼 수 있습니다. 정답지와 강사용 페이지는 노션 교안 페이지 밖(별도 페이지)에 두세요. 교안 페이지의 하위 페이지는 웹에 실리지 않습니다.
