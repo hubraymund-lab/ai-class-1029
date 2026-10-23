@@ -193,6 +193,7 @@ body.teach .dock { display: block; }
 <div class="dock" id="dock">
   <div class="dock-in">
     <span class="now">강사 모드 · 지금 <b id="nowName">—</b></span>
+    <span class="pill warn" id="keyPill">열쇠 확인 중</span>
     <span class="pill" id="countPill">접속 0명</span>
     <span class="pill" id="followPill">따라오는 중 0명</span>
     <span class="pill" id="helpPill">막혔어요 0명</span>
@@ -291,7 +292,8 @@ body.teach .dock { display: block; }
   function receive(msg) {
     if (!msg || typeof msg.sec !== 'string' || typeof msg.ts !== 'number' || msg.ts <= hereTs) return;
     verify(msg).then(ok => {
-      if (!ok || msg.ts <= hereTs) return;
+      if (!ok) { if (!teach) setStatus(false, '강사 신호를 받았지만 열쇠가 맞지 않음'); return; }
+      if (msg.ts <= hereTs) return;
       hereTs = msg.ts; here = msg.sec; paintHere();
       if (!teach && follow) { autoScrolling = true; jump(); setTimeout(() => autoScrolling = false, 900); }
     });
@@ -489,10 +491,11 @@ body.teach .dock { display: block; }
     e.preventDefault(); await ready;
     const d = parseKey($('keyIn').value); const k = await importPriv(d);
     if (!k) { $('keyMsg').textContent = d ? '열쇠가 맞지 않습니다. 강사링크.txt의 #teach. 뒤 글자 전체를 붙여 넣어 주세요' : '열쇠 형식이 아닙니다'; return; }
-    privKey = k; store.set('teachKey', d); $('keyIn').value = ''; $('keyForm').hidden = true;
+    privKey = k; store.set('teachKey', d); $('keyIn').value = ''; $('keyForm').hidden = true; paintKey();
     teachGo(here && byId[here] ? here : marks[0].id);
   });
-  if (teach) ready.then(() => { if (CFG.publicKey && !privKey) askKey(); });
+  function paintKey() { const ok = !CFG.publicKey || !!privKey; $('keyPill').textContent = ok ? '열쇠 ✓' : '열쇠 없음 — 수강생이 따라오지 않습니다'; $('keyPill').classList.toggle('warn', !ok); }
+  if (teach) ready.then(() => { paintKey(); if (CFG.publicKey && !privKey) askKey(); });
 
   /* ---------- 막혔어요 ---------- */
   $('help').onclick = () => { helpOn = !helpOn; $('help').setAttribute('aria-pressed', String(helpOn)); $('help').textContent = helpOn ? '✋ 도움 요청 중 · 누르면 취소' : '✋ 막혔어요'; transports.forEach(t => t.presence()); };
