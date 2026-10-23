@@ -382,8 +382,9 @@ body.teach .dock { display: block; }
     const wait = [1000, 2000, 4000, 8000, 15000][Math.min(retry++, 4)];
     retryTimer = setTimeout(connect, wait);
   }
+  let connectAt = 0;
   function connect() {
-    clearTimeout(retryTimer); retryTimer = null;
+    clearTimeout(retryTimer); retryTimer = null; connectAt = Date.now();
     try {
       if (!sb) sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { realtime: { heartbeatIntervalMs: 15000 } });
       if (sbCh) { const old = sbCh; sbCh = null; sb.removeChannel(old).catch(() => {}); }
@@ -415,7 +416,7 @@ body.teach .dock { display: block; }
     setInterval(() => {
       let ok = false; try { ok = sb.realtime.isConnected() && sbCh && sbCh.state === 'joined'; } catch (e) {}
       if (!ok && sbJoined) scheduleReconnect();
-      else if (!ok && !retryTimer) scheduleReconnect();
+      else if (!ok && !retryTimer && Date.now() - connectAt > 12000) scheduleReconnect();  // 연결 시도 뒤 12초는 기다림
     }, 5000);
     window.__gyoanTest = { drop: () => { try { sb.realtime.disconnect(); } catch (e) {} }, state: () => ({ joined: sbJoined, conn: sb.realtime.isConnected(), ch: sbCh && sbCh.state }) };  // 연결 끊김 시험용
     transports.push({
