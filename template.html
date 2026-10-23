@@ -353,7 +353,7 @@ body.teach .dock { display: block; }
   setInterval(refreshCounts, 3000);
 
   // 1) 같은 브라우저의 다른 탭 (강의 전 혼자 시험해 보는 용도)
-  if ('BroadcastChannel' in window) {
+  if ('BroadcastChannel' in window && !location.search.includes('nobc')) {   // ?nobc 는 서버 경로만 시험할 때
     const bc = new BroadcastChannel('gyoan-' + (CFG.room || 'demo'));
     bc.onmessage = (e) => { const d = e.data || {};
       if (d.type === 'here') receive(d.msg);
