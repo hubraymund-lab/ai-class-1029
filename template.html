@@ -282,12 +282,10 @@ body.teach .dock { display: block; }
   function updateBack() {
     if (teach || !here || !byId[here]) { $('back').hidden = true; return; }
     const r = byId[here].getBoundingClientRect(); const far = r.top > innerHeight || r.bottom < 0;
-    $('back').hidden = !(far && !follow);
+    $('back').hidden = !far;
   }
   /* 수강생이 직접 크게 스크롤하면 따라가기를 잠시 끔 */
   let autoScrolling = false, lastY = scrollY;
-  addEventListener('wheel', () => { if (!teach && follow && !autoScrolling) { setFollow(false); } }, { passive: true });
-  addEventListener('touchmove', () => { if (!teach && follow && !autoScrolling) { setFollow(false); } }, { passive: true });
   addEventListener('scroll', () => { updateBack(); lastY = scrollY; }, { passive: true });
 
   function receive(msg) {
@@ -368,30 +366,61 @@ body.teach .dock { display: block; }
     transports.push({ here: (msg) => bc.postMessage({ type: 'here', msg }), show: (msg) => bc.postMessage({ type: 'show', msg }), presence: hello });
   }
 
-  // 2) 실시간 서버 — config에 Supabase 주소가 있을 때만
-  let sbCh = null;
-  if (CFG.supabaseUrl && CFG.supabaseKey && window.supabase) {
+  // 2) 실시간 서버 — config에 Supabase 주소가 있을 때만. 끊기면 스스로 다시 연결합니다(휴대폰은 화면을 끄거나 앱을 바꾸면 자주 끊김).
+  let sbCh = null, sb = null, sbJoined = false, retry = 0, retryTimer = null, downTimer = null;
+  const ROOM = 'gyoan-' + (CFG.room || 'class');
+  function onPresence() {
+    if (!sbCh) return; const st = sbCh.presenceState();
+    for (const k of [...peers.keys()]) if (!peers.get(k).local) peers.delete(k);
+    for (const [k, arr] of Object.entries(st)) { const p = arr[0] || {}; if (k === myId) continue; peers.set(k, { role: p.role, help: !!p.help, follow: !!p.follow, at: typeof p.at === 'string' ? p.at : null, seen: Date.now() }); if (p.role === 't' && p.here) receive(p.here); }
+    refreshCounts();
+    if (!teach && sbJoined) { const t = Object.values(st).some(arr => (arr[0] || {}).role === 't'); setStatus(true, t ? '강사와 연결됨' : '연결됨 · 강사 대기 중'); }
+  }
+  function scheduleReconnect() {
+    sbJoined = false; clearTimeout(retryTimer);
+    clearTimeout(downTimer); downTimer = setTimeout(() => { if (!sbJoined) setStatus(false, '다시 연결하는 중…'); }, 2500);  // 잠깐 끊김은 표시하지 않음
+    const wait = [1000, 2000, 4000, 8000, 15000][Math.min(retry++, 4)];
+    retryTimer = setTimeout(connect, wait);
+  }
+  function connect() {
+    clearTimeout(retryTimer);
     try {
-      const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey);
-      sbCh = sb.channel('gyoan-' + (CFG.room || 'class'), { config: { broadcast: { self: false }, presence: { key: myId } } });
-      sbCh.on('broadcast', { event: 'here' }, ({ payload }) => receive(payload));
-      sbCh.on('broadcast', { event: 'show' }, ({ payload }) => showStats(payload));
-      sbCh.on('presence', { event: 'sync' }, () => {
-        const st = sbCh.presenceState();
-        for (const k of [...peers.keys()]) if (!peers.get(k).local) peers.delete(k);
-        for (const [k, arr] of Object.entries(st)) { const p = arr[0] || {}; if (k === myId) continue; peers.set(k, { role: p.role, help: !!p.help, follow: !!p.follow, at: typeof p.at === 'string' ? p.at : null, seen: Date.now() }); if (p.role === 't' && p.here) receive(p.here); }
-        refreshCounts();
-        if (!teach) { const t = Object.values(st).some(arr => (arr[0] || {}).role === 't'); setStatus(true, t ? '강사와 연결됨' : '연결됨 · 강사 대기 중'); }
+      if (!sb) sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { realtime: { heartbeatIntervalMs: 15000 } });
+      if (sbCh) { const old = sbCh; sbCh = null; sb.removeChannel(old).catch(() => {}); }
+      const ch = sb.channel(ROOM, { config: { broadcast: { self: false }, presence: { key: myId } } });
+      sbCh = ch;
+      ch.on('broadcast', { event: 'here' }, ({ payload }) => receive(payload));
+      ch.on('broadcast', { event: 'show' }, ({ payload }) => showStats(payload));
+      ch.on('presence', { event: 'sync' }, onPresence);
+      ch.subscribe(async (state) => {
+        if (ch !== sbCh) return;   // 이미 새 연결로 바뀐 옛 연결
+        if (state === 'SUBSCRIBED') {
+          sbJoined = true; retry = 0; clearTimeout(downTimer);
+          setStatus(true, teach ? '실시간 연결됨' : '연결됨 · 강사 대기 중');
+          await trackMe(); onPresence();
+          if (teach && lastSigned) sendHere();
+        } else if (state === 'CHANNEL_ERROR' || state === 'TIMED_OUT' || state === 'CLOSED') {
+          scheduleReconnect();
+        }
       });
-      sbCh.subscribe(async (s) => {
-        if (s === 'SUBSCRIBED') { setStatus(true, teach ? '실시간 연결됨' : '연결됨 · 강사 대기 중'); await trackMe(); }
-        else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') setStatus(false, '다시 연결하는 중…');
-      });
-      transports.push({ here: (msg) => sbCh.send({ type: 'broadcast', event: 'here', payload: msg }), show: (msg) => sbCh.send({ type: 'broadcast', event: 'show', payload: msg }), presence: trackMe });
-    } catch (e) { sbCh = null; }
+    } catch (e) { scheduleReconnect(); }
+  }
+  if (CFG.supabaseUrl && CFG.supabaseKey && window.supabase) {
+    connect();
+    // 화면으로 돌아오거나 인터넷이 다시 잡히면 바로 확인
+    const wake = () => { if (!sbJoined) { retry = 0; connect(); } };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake(); });
+    addEventListener('online', wake); addEventListener('pageshow', wake);
+    window.__gyoanTest = { drop: () => { try { sb.realtime.disconnect(); } catch (e) {} }, joined: () => sbJoined };  // 연결 끊김 시험용
+    transports.push({
+      here: (msg) => { if (sbCh && sbJoined) sbCh.send({ type: 'broadcast', event: 'here', payload: msg }).catch(() => {}); },
+      show: (msg) => { if (sbCh && sbJoined) sbCh.send({ type: 'broadcast', event: 'show', payload: msg }).catch(() => {}); },
+      presence: () => trackMe()
+    });
   }
   let lastSigned = null;
-  async function trackMe() { if (!sbCh) return; await sbCh.track(teach ? { role: 't', here: lastSigned } : { role: 's', help: helpOn, follow, at: myAt }).catch(() => {}); }
+  let trackTimer = null;
+  async function trackMe() { if (!sbCh || !sbJoined) return; await sbCh.track(teach ? { role: 't', here: lastSigned } : { role: 's', help: helpOn, follow, at: myAt }).catch(() => {}); }
 
   if (!sbCh) {
     setStatus(false, CFG.supabaseUrl ? '연결 안 됨 · 혼자 보기' : '혼자 보기');
