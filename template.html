@@ -320,9 +320,10 @@ body.teach .dock { display: block; }
         for (const k of [...peers.keys()]) if (!peers.get(k).local) peers.delete(k);
         for (const [k, arr] of Object.entries(st)) { const p = arr[0] || {}; if (k === myId) continue; peers.set(k, { role: p.role, help: !!p.help, seen: Date.now() }); if (p.role === 't' && p.here) receive(p.here); }
         refreshCounts();
+        if (!teach) { const t = Object.values(st).some(arr => (arr[0] || {}).role === 't'); setStatus(true, t ? '강사와 연결됨' : '연결됨 · 강사 대기 중'); }
       });
       sbCh.subscribe(async (s) => {
-        if (s === 'SUBSCRIBED') { setStatus(true, teach ? '수강생 화면과 연결됨' : '강사와 연결됨'); await trackMe(); }
+        if (s === 'SUBSCRIBED') { setStatus(true, teach ? '실시간 연결됨' : '연결됨 · 강사 대기 중'); await trackMe(); }
         else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') setStatus(false, '다시 연결하는 중…');
       });
       transports.push({ here: (msg) => sbCh.send({ type: 'broadcast', event: 'here', payload: msg }), presence: trackMe });
