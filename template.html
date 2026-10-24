@@ -138,6 +138,40 @@ body.teach .dock { display: block; }
 .show .bar2 { width: min(560px, 80vw); height: 14px; border-radius: 7px; background: rgba(255,255,255,.22); margin: 1.4em auto .4em; overflow: hidden; }
 .show .bar2 i { display: block; height: 100%; background: var(--buoy); width: 0; transition: width 1.2s ease-out; }
 .show .sub { font-size: 18px; opacity: .85; }
+/* 강사 조종판 */
+.modebtn { display: none; }
+body.teach .modebtn { display: inline-block; }
+body.teach #follow { display: none; }
+body.mode-panel #lesson, body.mode-panel .cover, body.mode-panel #demoNote { display: none; }
+.panel { max-width: 62rem; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .panel { grid-template-columns: minmax(0, 1fr); } }
+.p-now { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 76px); }
+.p-k { font-size: 14px; color: var(--muted); letter-spacing: .03em; }
+.p-part { font-size: 15px; color: var(--muted); margin-top: 6px; }
+.p-title { font-family: var(--f-display); font-size: 1.7em; line-height: 1.3; margin: 2px 0 14px; text-wrap: balance; }
+.p-next { border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 4px; font-size: 16px; }
+.p-next b { font-weight: 700; }
+.p-btns { display: flex; gap: 10px; margin: 16px 0 6px; }
+.p-btns .btn { flex: 1; font-size: 18px; padding: 14px 10px; font-weight: 700; }
+.p-btns .go { background: var(--buoy); border-color: var(--buoy); color: #fff; }
+.p-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.p-stat { flex: 1 1 6rem; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; text-align: center; }
+.p-stat b { display: block; font-family: var(--f-display); font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.p-stat span { font-size: 13px; color: var(--muted); }
+.p-stat.warn { border-color: var(--buoy); background: var(--buoy-soft); }
+.p-prompts { margin-top: 14px; font-size: 15px; }
+.p-prompts li { margin: 4px 0; color: var(--muted); }
+.p-list { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 16px; line-height: 1.4; }
+.p-list button { all: unset; box-sizing: border-box; display: flex; gap: 8px; align-items: center; width: 100%; padding: 7px 10px; border-radius: 5px; cursor: pointer; }
+.p-list button:hover { background: var(--c-gray); }
+.p-list button:focus-visible { outline: 3px solid var(--sea); }
+.p-list .l1 { font-weight: 700; margin-top: 6px; }
+.p-list .l2 { padding-left: 24px; color: var(--muted); font-size: 15px; }
+.p-list .here { background: var(--buoy-soft); color: var(--ink); font-weight: 700; }
+.p-list .here::before { content: "▶"; color: var(--buoy); font-size: 12px; }
+.p-list .nx { box-shadow: inset 3px 0 0 var(--sea); }
+.p-list .lbl { flex: 1; min-width: 0; }
+.p-list .c { font-size: 13px; font-weight: 700; color: #fff; background: var(--sea); border-radius: 10px; padding: 0 7px; font-variant-numeric: tabular-nums; }
 .note { max-width: 40em; margin: 0 auto 18px; font-size: 15px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; padding: 10px 14px; line-height: 1.55; }
 .cover { max-width: 40em; margin: 0 auto 8px; }
 .cover .eyebrow { font-size: 15px; color: var(--muted); letter-spacing: .03em; }
@@ -161,6 +195,7 @@ body.teach .dock { display: block; }
       <button class="btn" id="fsDown" type="button" aria-label="글자 작게">가−</button>
       <button class="btn" id="fsUp" type="button" aria-label="글자 크게">가+</button>
     </span>
+    <button class="btn modebtn" id="modeBtn" type="button">교안 보기</button>
     <button class="btn" id="tocBtn" type="button" aria-expanded="false" aria-controls="toc">목차</button>
   </div>
 </header>
@@ -168,6 +203,22 @@ body.teach .dock { display: block; }
 <main>
   <div class="cover"><div class="eyebrow">사회복지사 AI 심화과정 · 2026. 10. 29. 제주복지이음마루</div><h1>같은 AI로 다른 결과 만들기</h1></div>
   <p class="note" id="demoNote" hidden></p>
+  <section class="panel" id="panel" hidden aria-label="강사 조종판">
+    <div class="p-now">
+      <div class="p-k">지금 수강생 화면</div>
+      <div class="p-part" id="pPart"></div>
+      <div class="p-title" id="pTitle">—</div>
+      <div class="p-btns"><button class="btn" id="pPrev" type="button">◀ 이전</button><button class="btn go" id="pNext" type="button">다음 ▶</button></div>
+      <div class="p-next">다음: <b id="pNext2">—</b></div>
+      <div class="p-stats">
+        <div class="p-stat"><b id="pN">0</b><span>접속</span></div>
+        <div class="p-stat"><b id="pF">0</b><span>따라오는 중</span></div>
+        <div class="p-stat" id="pHbox"><b id="pH">0</b><span>막혔어요</span></div>
+      </div>
+      <div class="p-prompts" id="pPrompts" hidden><div class="p-k">이 장에서 복사할 프롬프트</div><ol id="pPromptList"></ol></div>
+    </div>
+    <div class="p-list" id="pList"></div>
+  </section>
   <article id="lesson"><!--LESSON--></article>
 </main>
 
@@ -274,6 +325,7 @@ body.teach .dock { display: block; }
     marks.forEach(m => m.classList.toggle('here', m.id === here));
     document.querySelectorAll('#tocList a').forEach(a => a.classList.toggle('here', a.dataset.id === here));
     if (teach) $('nowName').textContent = here && byId[here] ? byId[here].dataset.label : '—';
+    if (teach) paintPanel();
     updateBack();
   }
   function setFollow(on) { const ch = on !== follow; follow = on; $('follow').setAttribute('aria-pressed', String(on)); updateBack(); if (ch) { try { transports.forEach(t => t.presence()); refreshCounts(); } catch (e) {} } }
@@ -349,6 +401,8 @@ body.teach .dock { display: block; }
     $('helpPill').textContent = '막혔어요 ' + h + '명'; $('helpPill').classList.toggle('warn', h > 0);
     const c = $('crowd'); c.hidden = !(transports.length && (n > 1 || teacherOn));
     c.innerHTML = '함께 <b>' + n + '</b> · 따라오는 <b>' + f + '</b>';
+    if (teach) { $('pN').textContent = n; $('pF').textContent = f; $('pH').textContent = h; $('pHbox').classList.toggle('warn', h > 0);
+      document.querySelectorAll('#pList button').forEach(bt => { const k = at[bt.dataset.id] || 0; const c = bt.querySelector('.c'); c.textContent = k || ''; c.hidden = !k; }); }
     if (teach) document.querySelectorAll('#tocList a').forEach(a => { let b = a.querySelector('.cnt'); const k = at[a.dataset.id] || 0;
       if (!k) { if (b) b.remove(); return; } if (!b) { b = document.createElement('span'); b.className = 'cnt'; a.prepend(b); } b.textContent = k; });
   }
@@ -447,7 +501,7 @@ body.teach .dock { display: block; }
     if (!teach || !byId[id]) return;
     await ready; if (CFG.publicKey && !privKey) { askKey(); return; }
     here = id; hereTs = Date.now(); lastSigned = await sign({ sec: here, ts: hereTs });
-    paintHere(); byId[id].scrollIntoView({ behavior: 'smooth' });
+    paintHere(); if (!panelMode) byId[id].scrollIntoView({ behavior: 'smooth' });
     transports.forEach(t => { t.here(lastSigned); }); trackMe();
     store.set('teachHere', id);
   }
@@ -496,6 +550,39 @@ body.teach .dock { display: block; }
   });
   function paintKey() { const ok = !CFG.publicKey || !!privKey; $('keyPill').textContent = ok ? '열쇠 ✓' : '열쇠 없음 — 수강생이 따라오지 않습니다'; $('keyPill').classList.toggle('warn', !ok); }
   if (teach) ready.then(() => { paintKey(); if (CFG.publicKey && !privKey) askKey(); });
+
+  /* ---------- 강사 조종판 ---------- */
+  let panelMode = false;
+  const partOf = {}; let curPart = '';
+  marks.forEach(m => { if (m.tagName === 'H1') curPart = m.dataset.label; partOf[m.id] = m.tagName === 'H1' ? '' : curPart; });
+  const promptsOf = {};  // 장마다 그 안의 프롬프트 첫 줄
+  lesson.querySelectorAll('pre').forEach(pre => {
+    let owner = null; for (const m of marks) { if (m.compareDocumentPosition(pre) & Node.DOCUMENT_POSITION_FOLLOWING) owner = m.id; else break; }
+    if (!owner) return; const first = (pre.innerText.split('\n').find(l => l.trim() && !/^##\s/.test(l.trim())) || pre.innerText.split('\n')[0] || '').trim();
+    (promptsOf[owner] = promptsOf[owner] || []).push(first.length > 70 ? first.slice(0, 70) + '…' : first);
+  });
+  if (teach) {
+    const list = $('pList');
+    marks.forEach(m => { const b = document.createElement('button'); b.type = 'button'; b.dataset.id = m.id; b.className = m.tagName === 'H1' ? 'l1' : 'l2';
+      const l = document.createElement('span'); l.className = 'lbl'; l.textContent = m.dataset.label; const c = document.createElement('span'); c.className = 'c'; c.hidden = true;
+      b.append(l, c); b.onclick = () => teachGo(m.id); list.appendChild(b); });
+    $('pPrev').onclick = () => step(-1); $('pNext').onclick = () => step(1);
+  }
+  function paintPanel() {
+    const i = marks.findIndex(m => m.id === here); const cur = marks[i], nx = marks[i + 1];
+    $('pTitle').textContent = cur ? cur.dataset.label : '—'; $('pPart').textContent = cur ? partOf[cur.id] : '';
+    $('pNext2').textContent = nx ? nx.dataset.label : '마지막 장입니다';
+    const ps = cur ? (promptsOf[cur.id] || []) : []; $('pPrompts').hidden = !ps.length; $('pPromptList').innerHTML = '';
+    ps.forEach(t => { const li = document.createElement('li'); li.textContent = t; $('pPromptList').appendChild(li); });
+    document.querySelectorAll('#pList button').forEach(b => { b.classList.toggle('here', b.dataset.id === here); b.classList.toggle('nx', !!nx && b.dataset.id === nx.id); });
+    if (panelMode) { const hb = document.querySelector('#pList .here'); if (hb) hb.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  }
+  function setMode(p) {
+    panelMode = p; document.body.classList.toggle('mode-panel', p); $('panel').hidden = !p;
+    $('modeBtn').textContent = p ? '교안 보기' : '조종판 보기'; store.set('teachMode', p ? 'panel' : 'lesson');
+    if (!p && here && byId[here]) byId[here].scrollIntoView(); paintPanel();
+  }
+  if (teach) { $('modeBtn').onclick = () => setMode(!panelMode); setMode(store.get('teachMode') !== 'lesson'); }
 
   /* ---------- 막혔어요 ---------- */
   $('help').onclick = () => { helpOn = !helpOn; $('help').setAttribute('aria-pressed', String(helpOn)); $('help').textContent = helpOn ? '✋ 도움 요청 중 · 누르면 취소' : '✋ 막혔어요'; transports.forEach(t => t.presence()); };
