@@ -85,6 +85,13 @@ main { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: m
 details.toggle { margin: .9em 0; border: 1px solid var(--line); border-radius: 6px; padding: .5em .9em; background: var(--panel); }
 details.toggle > summary { cursor: pointer; font-weight: 700; }
 details.toggle[open] > summary { margin-bottom: .4em; }
+.tabs { margin: 1em 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.tabbar { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabbar button { all: unset; box-sizing: border-box; flex: 1; text-align: center; cursor: pointer; padding: .65em .8em; font-weight: 700; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; }
+.tabbar button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--sea); }
+.tabbar button:focus-visible { outline: 2px solid var(--sea); outline-offset: -2px; }
+.tabpane { padding: .3em 1em .8em; }
+.tabpane > .tbl:first-child { margin-top: .6em; }
 .quote { background: var(--c-gray); padding: .8em 1em; border-radius: 6px; margin: .9em 0; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr)); gap: 12px; margin: .9em 0; }
 .col { border: 1px solid var(--line); border-radius: 6px; padding: .6em 1em; min-width: 0; }
@@ -286,6 +293,32 @@ body.mode-panel #lesson, body.mode-panel .cover, body.mode-panel #demoNote { dis
     w.appendChild(b);
   });
   lesson.querySelectorAll('a[href^="http"]').forEach(a => { a.target = '_blank'; a.rel = 'noopener'; });
+  /* 탭: 제목이 '탭 · '으로 시작하는 토글이 이어지면 탭 묶음으로 */
+  (() => {
+    const isTab = (d) => d && d.matches && d.matches('details.toggle') && /^탭\s*·/.test((d.querySelector(':scope > summary')?.textContent || '').trim());
+    const tabs = [...lesson.querySelectorAll('details.toggle')].filter(isTab);
+    const done = new Set();
+    tabs.forEach(first => {
+      if (done.has(first)) return;
+      const grp = [first]; let n = first.nextElementSibling;
+      while (isTab(n)) { grp.push(n); n = n.nextElementSibling; }
+      const box = document.createElement('div'); box.className = 'tabs';
+      const bar = document.createElement('div'); bar.className = 'tabbar'; bar.setAttribute('role', 'tablist'); box.appendChild(bar);
+      first.before(box);
+      const panes = [], btns = [];
+      grp.forEach((g, i) => {
+        done.add(g);
+        const s = g.querySelector(':scope > summary');
+        const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'tab');
+        b.textContent = s.textContent.trim().replace(/^탭\s*·\s*/, ''); s.remove();
+        const p = document.createElement('div'); p.className = 'tabpane'; p.setAttribute('role', 'tabpanel');
+        while (g.firstChild) p.appendChild(g.firstChild); g.remove();
+        bar.appendChild(b); box.appendChild(p); btns.push(b); panes.push(p);
+        b.addEventListener('click', () => { btns.forEach((x, j) => { x.setAttribute('aria-selected', String(j === i)); panes[j].hidden = j !== i; }); });
+      });
+      btns[0].click();
+    });
+  })();
   if (CFG.downloadUrl) {
     const c = [...lesson.querySelectorAll('.callout')].find(el => el.textContent.includes('수강생 실습자료'));
     if (c) { const a = document.createElement('a'); a.className = 'dl'; a.href = CFG.downloadUrl; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '실습자료 내려받기'; c.appendChild(a); }
