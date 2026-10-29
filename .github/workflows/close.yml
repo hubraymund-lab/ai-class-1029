@@ -1,9 +1,9 @@
-# 교육 종료: 2026년 10월 29일 18:00(한국 시간)에 사이트를 종료 안내 한 장으로 바꾸고 실습자료 zip을 지웁니다.
+# 교육 종료: 2026년 10월 31일 22:00(한국 시간)에 사이트를 종료 안내 한 장으로 바꾸고 실습자료 zip을 지웁니다.
 # 미리 닫거나 시간을 놓쳤으면 Actions → 교육 종료 → Run workflow 를 누르세요.
 name: 교육 종료
 on:
   schedule:
-    - cron: '0 9 29 10 *'   # 09:00 UTC = 18:00 KST (GitHub 예약은 몇 분~수십 분 늦을 수 있음)
+    - cron: '0 13 31 10 *'   # 13:00 UTC = 22:00 KST (GitHub 예약은 몇 분~수십 분 늦을 수 있음)
   workflow_dispatch:
 permissions:
   contents: write
@@ -18,7 +18,7 @@ jobs:
     steps:
       - id: y
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$(TZ=Asia/Seoul date +%Y-%m-%d)" = "2026-10-29" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$(TZ=Asia/Seoul date +%Y-%m-%d)" = "2026-10-31" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
   build:
     needs: check
     if: needs.check.outputs.go == 'true'
