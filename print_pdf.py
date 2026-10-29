@@ -11,7 +11,7 @@ body { background: #fff !important; }
 #lesson pre { padding-top: 1em !important; }
 #lesson h1 { break-before: page; }
 #lesson h1:first-of-type { break-before: auto; }
-table, pre, .callout, blockquote, img { break-inside: avoid; }
+tr, pre, blockquote, img { break-inside: avoid; }
 h1, h2, h3 { break-after: avoid; }
 .tabpane { display: block !important; }
 .tablabel { font-weight: 700; margin: .8em 0 .2em; }
