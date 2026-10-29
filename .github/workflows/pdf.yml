@@ -1,0 +1,35 @@
+# 노션 교안 → PDF. 결과는 pdf-out 브랜치의 교안.pdf 로 올라갑니다.
+name: 교안 PDF
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [print_pdf.py, .github/workflows/pdf.yml, pdf.trigger]
+permissions:
+  contents: write
+jobs:
+  pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: 노션에서 교안 읽기
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_PAGE_ID: ${{ secrets.NOTION_PAGE_ID }}
+        run: python notion_build.py site
+      - name: 웹 화면 만들기
+        run: python build_page.py site/lesson.html site/index.html --config config.json && cp -r vendor site/
+      - name: 한글 글꼴과 브라우저 설치
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk >/dev/null
+          pip install -q playwright && python -m playwright install --with-deps chromium >/dev/null
+      - name: PDF 만들기
+        run: python print_pdf.py site/index.html 교안.pdf
+      - name: pdf-out 브랜치에 올리기
+        run: |
+          mkdir /tmp/o && cp 교안.pdf /tmp/o/ && cd /tmp/o && git init -q -b pdf-out
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add . && git commit -qm "교안 PDF $(TZ=Asia/Seoul date '+%m-%d %H:%M')"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" pdf-out
